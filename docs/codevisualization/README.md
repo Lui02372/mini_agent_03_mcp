@@ -1,11 +1,9 @@
-# Architecture evidence
+# Code Visualization
 
-Open index.html locally. architecture.json describes deployment and runtime
-connections verified against the referenced code. The static extractor lists
-Python files but does not infer Python imports; files.mmd is not a runtime call
-graph. Hidden .github files are excluded by its scan and are explicitly cited
-by the architecture definition. Database connectivity is conditional on the
-external server firewall and is not established by this graph.
+Generated: 2026-09-21T09:02:02.590Z
 
-Generated using the codevisualization skill's `generate(project, output,
-architecture)` export. HTML interaction has not been browser-tested.
+Open index.html (offline, no CDN). Files: 21; static edges: 0; unresolved: 0; cycles: 0.
+
+First-party source inventory; excludes dependencies/builds/secrets/data directories. JS/TS literal relative import/require/file-URL edges only; heuristic, not complete semantic analysis. Java/Python inventoried but not resolved. No runtime connectivity claim.
+
+View the full graph in graph.json / files.mmd; select a file in HTML for readable incoming/outgoing links. Runtime signals are candidates requiring source review, not proof of scheduled jobs.

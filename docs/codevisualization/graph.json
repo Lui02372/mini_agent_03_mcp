@@ -1,0 +1,146 @@
+{
+  "generatedAt": "2026-09-21T09:02:02.590Z",
+  "scope": "First-party source inventory; excludes dependencies/builds/secrets/data directories. JS/TS literal relative import/require/file-URL edges only; heuristic, not complete semantic analysis. Java/Python inventoried but not resolved. No runtime connectivity claim.",
+  "files": [
+    "DEPLOYMENT.md",
+    "README.md",
+    "backend/__init__.py",
+    "backend/app/__init__.py",
+    "backend/app/agent.py",
+    "backend/app/main.py",
+    "backend/app/mcp_client.py",
+    "backend/app/schemas.py",
+    "detail.md",
+    "docker-compose.yml",
+    "drawing.md",
+    "env/compose.yml",
+    "example.md",
+    "explain.md",
+    "frontend/app.py",
+    "mcp_server/policy_stdio_server.py",
+    "mcp_server/travel_server.py",
+    "mcpdonotknow.md",
+    "ops/check_services.py",
+    "solution/README.md",
+    "starter/README.md"
+  ],
+  "edges": [],
+  "unresolved": [],
+  "signals": [
+    {
+      "file": "frontend/app.py",
+      "kind": "network",
+      "line": 14
+    }
+  ],
+  "cycles": [],
+  "architecture": {
+    "nodes": [
+      {
+        "id": "frontend",
+        "label": "Streamlit frontend",
+        "status": "implemented",
+        "description": "Code configuration; external data reachability must be checked separately.",
+        "evidence": [
+          "frontend/app.py",
+          "env/compose.yml"
+        ]
+      },
+      {
+        "id": "backend",
+        "label": "FastAPI backend",
+        "status": "implemented",
+        "description": "Code configuration; external data reachability must be checked separately.",
+        "evidence": [
+          "backend/app/main.py",
+          "backend/app/mcp_client.py"
+        ]
+      },
+      {
+        "id": "travel",
+        "label": "Travel HTTP MCP",
+        "status": "implemented",
+        "description": "Code configuration; external data reachability must be checked separately.",
+        "evidence": [
+          "mcp_server/travel_server.py"
+        ]
+      },
+      {
+        "id": "policy",
+        "label": "Policy stdio MCP",
+        "status": "implemented",
+        "description": "Code configuration; external data reachability must be checked separately.",
+        "evidence": [
+          "mcp_server/policy_stdio_server.py"
+        ]
+      },
+      {
+        "id": "ci",
+        "label": "GitHub Actions / EC2 runner",
+        "status": "implemented",
+        "description": "Workflow and shell script manually reviewed; extractor excludes hidden .github and shell scripts.",
+        "evidence": [
+          "env/compose.yml"
+        ],
+        "manualEvidence": [
+          ".github/workflows/deploy.yml",
+          "ops/deploy.sh"
+        ]
+      },
+      {
+        "id": "data",
+        "label": "External PostgreSQL / Redis check",
+        "status": "implemented",
+        "description": "Code configuration; external data reachability must be checked separately.",
+        "evidence": [
+          "ops/check_services.py",
+          "env/compose.yml"
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "from": "frontend",
+        "to": "backend",
+        "label": "HTTP",
+        "status": "implemented"
+      },
+      {
+        "from": "backend",
+        "to": "travel",
+        "label": "Streamable HTTP",
+        "status": "implemented"
+      },
+      {
+        "from": "backend",
+        "to": "policy",
+        "label": "stdio subprocess",
+        "status": "implemented"
+      },
+      {
+        "from": "ci",
+        "to": "frontend",
+        "label": "tested image deployment",
+        "status": "implemented"
+      },
+      {
+        "from": "ci",
+        "to": "backend",
+        "label": "tested image deployment",
+        "status": "implemented"
+      },
+      {
+        "from": "ci",
+        "to": "travel",
+        "label": "tested image deployment",
+        "status": "implemented"
+      },
+      {
+        "from": "ci",
+        "to": "data",
+        "label": "read-only preflight; optional for demo",
+        "status": "implemented"
+      }
+    ]
+  }
+}

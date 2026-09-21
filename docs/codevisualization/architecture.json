@@ -42,8 +42,11 @@
       "id": "ci",
       "label": "GitHub Actions / EC2 runner",
       "status": "implemented",
-      "description": "Code configuration; external data reachability must be checked separately.",
+      "description": "Workflow and shell script manually reviewed; extractor excludes hidden .github and shell scripts.",
       "evidence": [
+        "env/compose.yml"
+      ],
+      "manualEvidence": [
         ".github/workflows/deploy.yml",
         "ops/deploy.sh"
       ]
