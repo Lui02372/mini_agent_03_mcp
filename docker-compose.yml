@@ -1,0 +1,3 @@
+# Compatibility entrypoint; production config lives in env/.
+include:
+  - path: env/compose.yml

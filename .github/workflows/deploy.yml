@@ -1,0 +1,71 @@
+name: MCP CI and EC2 deployment
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mcp-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      APP_IMAGE: mini-agent-mcp:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test containers without production credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp env/.env.docker.example env/.env.ci
+          export FRONTEND_PORT=18501 FRONTEND_BIND_IP=127.0.0.1
+          docker compose --env-file env/.env.ci -f env/compose.yml config --quiet
+          docker build -t "$APP_IMAGE" .
+          docker compose --env-file env/.env.ci -f env/compose.yml up -d --no-build --wait --wait-timeout 180
+          docker compose --env-file env/.env.ci -f env/compose.yml exec -T backend python ops/check_services.py
+          curl --fail http://127.0.0.1:18501/_stcore/health
+          docker save "$APP_IMAGE" | gzip > image.tar.gz
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        with:
+          name: app-image
+          path: image.tar.gz
+          retention-days: 2
+      - name: Clean up CI services
+        if: always()
+        run: docker compose --env-file env/.env.ci -f env/compose.yml down
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: ci
+    runs-on: [self-hosted, linux, x64, mini-agent-ec2]
+    environment: production
+    timeout-minutes: 15
+    env:
+      RELEASE: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+      IMAGE_TAG: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: app-image
+      - name: Deploy tested image on personal EC2
+        shell: bash
+        env:
+          RUNTIME_ENV: ${{ secrets.RUNTIME_ENV }}
+        run: |
+          set -euo pipefail
+          remote="/opt/mini-agent-mcp/releases/$RELEASE"
+          install -d -m 700 "$remote/env" "$remote/ops"
+          install -m 644 env/compose.yml "$remote/env/compose.yml"
+          install -m 755 ops/deploy.sh "$remote/ops/deploy.sh"
+          if [[ -n "$RUNTIME_ENV" ]]; then
+            umask 077
+            printf '%s\n' "$RUNTIME_ENV" > "$remote/env/.env.docker"
+          fi
+          sudo docker load -i image.tar.gz
+          sudo docker tag "mini-agent-mcp:$IMAGE_TAG" "mini-agent-mcp:$RELEASE"
+          rm image.tar.gz
+          bash "$remote/ops/deploy.sh" "$RELEASE"

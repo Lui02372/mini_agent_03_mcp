@@ -1,0 +1,12 @@
+**
+!requirements.deploy.txt
+!backend/
+!backend/**
+!frontend/
+!frontend/**
+!mcp_server/
+!mcp_server/**
+!ops/
+!ops/check_services.py
+**/__pycache__
+**/*.pyc

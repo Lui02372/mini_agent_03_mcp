@@ -1,0 +1,10 @@
+fastapi==0.141.1
+httpx==0.28.1
+mcp==1.29.1
+openai==3.7.0
+pydantic==2.13.5
+python-dotenv==1.2.3
+streamlit==1.63.0
+uvicorn==0.52.4
+psycopg[binary]==3.3.5
+redis==8.1.0

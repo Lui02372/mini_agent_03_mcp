@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+env/.env.docker
+*.pem
+*.key
+.venv/
+__pycache__/
+*.pyc
+*.tar.gz
+*.log
+
+!env/.env.docker.example
