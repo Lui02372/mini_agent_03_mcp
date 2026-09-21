@@ -1,0 +1,106 @@
+{
+  "nodes": [
+    {
+      "id": "frontend",
+      "label": "Streamlit frontend",
+      "status": "implemented",
+      "description": "Code configuration; external data reachability must be checked separately.",
+      "evidence": [
+        "frontend/app.py",
+        "env/compose.yml"
+      ]
+    },
+    {
+      "id": "backend",
+      "label": "FastAPI backend",
+      "status": "implemented",
+      "description": "Code configuration; external data reachability must be checked separately.",
+      "evidence": [
+        "backend/app/main.py",
+        "backend/app/mcp_client.py"
+      ]
+    },
+    {
+      "id": "travel",
+      "label": "Travel HTTP MCP",
+      "status": "implemented",
+      "description": "Code configuration; external data reachability must be checked separately.",
+      "evidence": [
+        "mcp_server/travel_server.py"
+      ]
+    },
+    {
+      "id": "policy",
+      "label": "Policy stdio MCP",
+      "status": "implemented",
+      "description": "Code configuration; external data reachability must be checked separately.",
+      "evidence": [
+        "mcp_server/policy_stdio_server.py"
+      ]
+    },
+    {
+      "id": "ci",
+      "label": "GitHub Actions / EC2 runner",
+      "status": "implemented",
+      "description": "Code configuration; external data reachability must be checked separately.",
+      "evidence": [
+        ".github/workflows/deploy.yml",
+        "ops/deploy.sh"
+      ]
+    },
+    {
+      "id": "data",
+      "label": "External PostgreSQL / Redis check",
+      "status": "implemented",
+      "description": "Code configuration; external data reachability must be checked separately.",
+      "evidence": [
+        "ops/check_services.py",
+        "env/compose.yml"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "frontend",
+      "to": "backend",
+      "label": "HTTP",
+      "status": "implemented"
+    },
+    {
+      "from": "backend",
+      "to": "travel",
+      "label": "Streamable HTTP",
+      "status": "implemented"
+    },
+    {
+      "from": "backend",
+      "to": "policy",
+      "label": "stdio subprocess",
+      "status": "implemented"
+    },
+    {
+      "from": "ci",
+      "to": "frontend",
+      "label": "tested image deployment",
+      "status": "implemented"
+    },
+    {
+      "from": "ci",
+      "to": "backend",
+      "label": "tested image deployment",
+      "status": "implemented"
+    },
+    {
+      "from": "ci",
+      "to": "travel",
+      "label": "tested image deployment",
+      "status": "implemented"
+    },
+    {
+      "from": "ci",
+      "to": "data",
+      "label": "read-only preflight; optional for demo",
+      "status": "implemented"
+    }
+  ]
+}
