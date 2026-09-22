@@ -1,3 +1,8 @@
+# Multi-agent deployment update
+
+현재 화면은 Weather / Place / Budget / Validation 4개 역할로 구성됩니다.
+[실행 구조와 API](MULTI_AGENT.md) · [EC2 배포](DEPLOYMENT.md)
+
 # Mini Agent 03 · MCP
 
 `mini_agent_03_tool`의 여행 Tool을 MCP Server로 분리한 작은 실전 프로젝트입니다.

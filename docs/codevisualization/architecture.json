@@ -60,6 +60,25 @@
         "ops/check_services.py",
         "env/compose.yml"
       ]
+    },
+    {
+      "id": "orchestration",
+      "label": "Weather + Place -> Budget -> Validation",
+      "status": "implemented",
+      "evidence": [
+        "backend/app/multi_orchestration.py",
+        "backend/app/multi_providers.py"
+      ]
+    },
+    {
+      "id": "logs",
+      "label": "Dedicated PostgreSQL / Redis history",
+      "status": "implemented",
+      "description": "Separate LOG URLs; reachability is not implied by this code graph.",
+      "evidence": [
+        "backend/app/multi_storage.py",
+        "env/compose.yml"
+      ]
     }
   ],
   "edges": [
@@ -103,6 +122,30 @@
       "from": "ci",
       "to": "data",
       "label": "read-only preflight; optional for demo",
+      "status": "implemented"
+    },
+    {
+      "from": "backend",
+      "to": "orchestration",
+      "label": "four role API",
+      "status": "implemented"
+    },
+    {
+      "from": "orchestration",
+      "to": "travel",
+      "label": "get_trip_evidence",
+      "status": "implemented"
+    },
+    {
+      "from": "travel",
+      "to": "data",
+      "label": "shared facts; mock fallback",
+      "status": "implemented"
+    },
+    {
+      "from": "orchestration",
+      "to": "logs",
+      "label": "initial and final run snapshots",
       "status": "implemented"
     }
   ]

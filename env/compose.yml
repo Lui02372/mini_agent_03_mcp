@@ -13,10 +13,25 @@ x-app: &app
     options:
       max-size: 10m
       max-file: "3"
+x-data-env: &data-env
+  POSTGRES_HOST: ${POSTGRES_HOST:?Set POSTGRES_HOST}
+  POSTGRES_PORT: ${POSTGRES_PORT:-5433}
+  POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB}
+  POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+  POSTGRES_SSLMODE: ${POSTGRES_SSLMODE:-prefer}
+  REDIS_HOST: ${REDIS_HOST:?Set REDIS_HOST}
+  REDIS_PORT: ${REDIS_PORT:-6379}
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+  REDIS_DB: ${REDIS_DB:-0}
+  REDIS_TLS: ${REDIS_TLS:-false}
+  DATABASE_URL: ${DATABASE_URL:-}
+  REDIS_URL: ${REDIS_URL:-}
 services:
   travel-mcp-server:
     <<: *app
     environment:
+      <<: *data-env
       MCP_HOST: 0.0.0.0
       MCP_PORT: "8010"
     healthcheck:
@@ -28,21 +43,23 @@ services:
   backend:
     <<: *app
     command: [python, -m, uvicorn, backend.app.main:app, --host, 0.0.0.0, --port, "8000"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      <<: *data-env
+      LOG_DATABASE_URL: ${LOG_DATABASE_URL:-}
+      LOG_REDIS_URL: ${LOG_REDIS_URL:-}
       TRAVEL_MCP_URL: http://travel-mcp-server:8010/mcp
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
-      POSTGRES_HOST: ${POSTGRES_HOST:?Set POSTGRES_HOST}
-      POSTGRES_PORT: ${POSTGRES_PORT:-5433}
-      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
-      POSTGRES_SSLMODE: ${POSTGRES_SSLMODE:-prefer}
-      REDIS_HOST: ${REDIS_HOST:?Set REDIS_HOST}
-      REDIS_PORT: ${REDIS_PORT:-6379}
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
-      REDIS_DB: ${REDIS_DB:-0}
-      REDIS_TLS: ${REDIS_TLS:-false}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      WEATHER_AGENT_PROVIDER: ${WEATHER_AGENT_PROVIDER:-gemini}
+      PLACE_AGENT_PROVIDER: ${PLACE_AGENT_PROVIDER:-ollama}
+      BUDGET_AGENT_PROVIDER: ${BUDGET_AGENT_PROVIDER:-openai}
+      VALIDATION_AGENT_PROVIDER: ${VALIDATION_AGENT_PROVIDER:-openai}
     depends_on:
       travel-mcp-server:
         condition: service_healthy

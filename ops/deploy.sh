@@ -25,7 +25,7 @@ if ! "${compose[@]}" run --rm --no-deps backend python ops/check_services.py --d
     echo "External data service check failed; deployment stopped."
     exit 1
   fi
-  echo "WARNING: external DB/Redis unavailable. This MCP demo has no storage feature."
+  echo "WARNING: external DB/Redis unavailable. Shared facts will fall back to labelled mock data. Dedicated log storage is checked per run."
 fi
 previous=$(readlink -f "$root/current" || true)
 rollback() {

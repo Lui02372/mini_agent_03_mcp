@@ -21,9 +21,8 @@ Current successful release: `/opt/mini-agent-mcp/current`.
 Each release retains its runtime env; deployment failure attempts rollback.
 This single-host deployment can have brief downtime.
 
-External DB checks are read-only SELECT 1 and Redis PING. The current demo has no
-storage feature. `REQUIRE_DATA_SERVICES=false` permits deployment with a warning
-if the external database is unavailable; set true when storage becomes required.
+External DB checks are read-only SELECT 1 and Redis PING. The multi-agent app stores execution history on the dedicated log server. `REQUIRE_DATA_SERVICES=false` permits deployment with a warning
+if the external database is unavailable; set true when shared data connectivity must be mandatory. Dedicated log write failures are shown separately in each run.
 
 ## Local use
 

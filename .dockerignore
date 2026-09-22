@@ -10,3 +10,7 @@
 !ops/check_services.py
 **/__pycache__
 **/*.pyc
+!.streamlit/
+!.streamlit/config.toml
+!tests/
+!tests/**

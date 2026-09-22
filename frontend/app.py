@@ -1,149 +1,174 @@
-# DETAIL_COMMENT_HEADER
-# ???뚯씪? 肄붾뱶???ㅽ뻾 寃곌낵肉??꾨땲??媛?援щЦ???낅젰쨌異쒕젰쨌怨꾩링 愿怨꾨? ?댄빐?섍린 ?꾪븳 ?숈뒿??二쇱꽍???ы븿?쒕떎.
-
-# LEARNING_COMMENT_HEADER
-# [File] mini_agent_03_mcp\frontend\app.py
-# [Role] Frontend UI and Backend API calls
-# [Reading order] imports/settings -> data structures -> inputs -> processing -> return/UI/API
-# These comments explain intent and structure; executable behavior is unchanged.
-
-# os는 운영체제 환경변수(BACKEND_API_URL)를 읽기 위한 표준 라이브러리다.
+"""Live four-agent orchestration monitor; all calls go through the backend."""
 import os
-
-# httpx는 보안 라이브러리가 아니라 "다른 HTTP 서버에 요청을 보내는 Client"다.
-# 브라우저의 fetch(), Java의 HTTP Client와 같은 역할을 Python에서 한다.
-# HTTPS 주소를 사용하면 TLS 암호화가 적용되지만, 암호화 자체는 httpx가 단독으로
-# 보장하는 것이 아니다. 서버 주소가 http://인지 https://인지가 보안에 중요하다.
 import httpx
-
-# Streamlit은 Python 코드의 실행 결과를 웹 화면으로 그리는 Frontend 프레임워크다.
-# st.button(), st.text_input() 같은 호출은 화면 요소를 만들고, 사용자의 입력값을
-# Python 변수로 가져오는 역할을 한다.
 import streamlit as st
 
-
-# 환경변수에 Backend 주소가 있으면 그것을 사용하고, 없으면 로컬 개발 주소를 쓴다.
-# .rstrip("/")는 주소 끝의 /를 제거한다.
-# 그래야 BASE_URL + "/api/mcp/run"을 조합할 때 //가 생기지 않는다.
 BASE_URL = os.getenv("BACKEND_API_URL", "http://127.0.0.1:8000").rstrip("/")
+ROLES = {"weather_agent": ("Weather agent", "날씨와 실내외 활동"),
+         "place_agent": ("Place agent", "장소 후보 비교"),
+         "budget_agent": ("Budget agent", "1인 여행 비용 계산"),
+         "validation_agent": ("Validation agent", "근거·예산·실행 결과 검토")}
+LABELS = {"pending": "대기", "running": "실행 중", "completed": "완료", "mock": "모의 응답", "failed": "실패", "partial_failure": "일부 실패"}
 
 
-def get(path: str) -> dict:
-    # def는 "이 작업을 나중에 여러 번 실행할 수 있도록 이름을 붙여 저장"하는 문법이다.
-    # path: str에서 :는 path 매개변수에 문자열을 기대한다는 타입 힌트다.
-    # -> dict에서 ->는 이 함수가 dict 형태를 반환할 예정이라는 반환 타입 힌트다.
-    # 타입 힌트는 실행 순서를 만드는 명령이 아니라, 사람·IDE·정적 검사기를 위한 계약이다.
-
-    # f-string은 문자열 안에 변수값을 끼워 넣는 문법이다.
-    # 예: path가 "/api/mcp/status"이면 전체 URL은
-    # "http://127.0.0.1:8000/api/mcp/status"가 된다.
-    response = httpx.get(f"{BASE_URL}{path}", timeout=30)
-
-    # HTTP 요청이 네트워크까지 도착했더라도 404·500 같은 실패 응답일 수 있다.
-    # raise_for_status()는 실패 상태를 Python 예외로 바꿔 아래 try/except가 처리하게 한다.
+def api(method, path, **kwargs):
+    response = httpx.request(method, BASE_URL + path, timeout=12, **kwargs)
     response.raise_for_status()
-
-    # 서버가 보낸 JSON 문자열을 Python dict/list/str/number 구조로 역직렬화한다.
-    # JSON은 Frontend와 Backend가 서로 다른 프로세스·언어여도 해석하기 쉬운 공통 형식이다.
     return response.json()
 
 
-def post(path: str, payload: dict) -> dict:
-    # GET은 보통 "읽기", POST는 "서버에 처리할 데이터 전달"에 사용한다.
-    # 여기서 payload는 질문처럼 Backend가 처리해야 할 입력을 담은 운반용 dict다.
-    # payload라는 이름 자체가 특별한 키워드는 아니며, data_to_send라고 불러도 된다.
-    # 다만 API 요청 본문(body)을 뜻하는 관례적인 이름으로 많이 사용한다.
-
-    # json=payload의 의미
-    # 1) payload Python dict를 JSON 문자열로 직렬화한다.
-    # 2) 요청 Body에 넣는다.
-    # 3) Content-Type: application/json을 알맞게 설정한다.
-    # 따라서 아래 payload는 다음 전송 데이터가 된다.
-    # {"question": "부산에서 15만원 이하 호텔을 찾아 주세요."}
-    # json=를 쓰는 이유는 Backend의 Pydantic 모델(McpRunRequest)이 JSON Body를
-    # 읽도록 설계되어 있기 때문이다. query string이나 form-data로 보내면 같은 계약이 아니다.
-    response = httpx.post(f"{BASE_URL}{path}", json=payload, timeout=60)
-
-    # POST는 요청을 보냈다는 사실만으로 성공이 아니다.
-    # 서버가 400(입력 오류), 503(연결/서버 오류)를 응답할 수 있으므로 상태 코드를 확인한다.
-    response.raise_for_status()
-
-    # Backend가 반환한 JSON 응답을 다시 Frontend가 사용할 Python dict로 바꾼다.
-    return response.json()
-
-
-# 이 호출은 화면의 기본 설정을 만든다. 일반적으로 다른 Streamlit UI 호출보다 먼저 둔다.
-st.set_page_config(page_title="Mini Agent 03 MCP", page_icon="🔌", layout="wide")
-st.title("Mini Agent 03 · MCP")
-st.caption(
-    "FastAPI가 Streamable HTTP와 stdio MCP Server의 Tool을 발견하고 "
-    "순차 Agent Loop로 호출합니다."
-)
-
+st.set_page_config(page_title="Travel Agent Studio", page_icon=":material/route:", layout="wide")
+st.title("Travel Agent Studio")
+st.write("네 명의 에이전트가 여행 조건을 나누어 검토합니다. 실행 순서와 근거를 직접 확인하세요.")
 try:
-    # Streamlit 파일은 위에서 아래로 다시 실행된다.
-    # 이 시점에서 GET 요청을 보내 Backend와 MCP Server 연결 상태를 화면에 보여준다.
-    status = get("/api/mcp/status")
-    st.success(f"MCP 연결: {status['status']} · Tool {status['tool_count']}개")
-    for server in status["servers"]:
-        st.write(
-            f"- `{server['name']}` · {server['transport']} · "
-            f"{server['endpoint']}"
-        )
+    config = api("GET", "/api/multi/config")
 except httpx.HTTPError:
-    st.warning(
-        "MCP Server에 연결할 수 없습니다. Travel 서버가 8010 포트에서 "
-        "실행 중인지 확인하세요."
-    )
+    st.error("백엔드에 연결할 수 없습니다. 잠시 후 새로고침하세요.")
+    st.stop()
 
-if st.button("MCP Tool 발견"):
-    # st.button()은 버튼을 그리고, 이번 실행에서 사용자가 클릭했으면 True를 반환한다.
-    # 버튼 클릭이 없으면 아래 블록은 실행되지 않는다.
+with st.sidebar:
+    st.header("에이전트별 모델")
+    if st.button("전체 모델을 mock으로 전환"):
+        for agent in ROLES:
+            st.session_state["provider_" + agent] = "mock"
+    selected = {}
+    for agent, (title, _) in ROLES.items():
+        default = config["defaults"].get(agent, "mock")
+        choices = config["providers"]
+        st.session_state.setdefault("provider_" + agent, default if default in choices else "mock")
+        selected[agent] = st.selectbox(title, choices, index=None, key="provider_" + agent)
+        st.caption(config["models"].get(selected[agent], "모델을 선택해 주세요."))
+        if not config["configured"].get(selected[agent]):
+            st.caption("서버 키/주소 미설정 · 모의 응답 허용 시 대체됩니다.")
+    allow_mock = st.checkbox("모델 호출 실패 시 모의 응답 허용", value=True)
+    st.caption("모의 데이터 사용과 모의 모델 응답은 별도로 표시합니다.")
+
+active = st.session_state.get("active", False)
+with st.form("trip_request"):
+    a, b, c = st.columns(3)
+    city = a.selectbox("도시", ["부산", "서울", "제주"])
+    days = b.number_input("여행 일수", min_value=1, max_value=14, value=2)
+    budget = c.number_input("1인 예산 (원)", min_value=10000, max_value=10000000, value=300000, step=10000)
+    question = st.text_area("요청 사항", "날씨를 고려해 여행 장소를 고르고 예산이 적절한지 검토해 주세요.", max_chars=1000, height=80)
+    data_mode = st.radio("데이터 모드", ["auto", "mock"], format_func=lambda x: "자동: MCP → Redis / PostgreSQL → 없으면 모의 데이터" if x == "auto" else "모의 데이터: 외부 DB 없이 실행", horizontal=True)
+    submitted = st.form_submit_button("멀티에이전트 실행", type="primary", disabled=active or any(value is None for value in selected.values()))
+if submitted:
     try:
-        st.json(get("/api/mcp/tools"))
-    except httpx.HTTPError as error:
-        st.error(f"Backend 호출 실패: {error}")
+        run = api("POST", "/api/multi/runs", json={"city": city, "days": days, "budget": budget,
+                  "question": question, "providers": selected, "data_mode": data_mode, "allow_model_mock": allow_mock})
+        st.session_state["lost_run"] = False
+        st.session_state.update(run_id=run["run_id"], snapshot=run, active=True)
+        st.rerun()
+    except httpx.HTTPStatusError as error:
+        st.error("실행 요청 실패: " + str(error.response.status_code) + " · 입력과 동시 실행 수를 확인하세요.")
+    except httpx.HTTPError:
+        st.error("백엔드 요청이 실패했습니다. 다시 시도하세요.")
 
-# text_input()은 화면에 입력창을 만들고 현재 입력값을 문자열로 반환한다.
-# 반환된 문자열이 아래 post()의 payload 안에 들어간다.
-question = st.text_input(
-    "질문",
-    "부산 날씨와 15만원 이하 호텔을 찾고, 검색된 호텔의 정책도 알려 주세요.",
-)
-if st.button("MCP Agent 실행", type="primary"):
-    try:
-        # Frontend의 질문을 Backend의 POST API로 전달한다.
-        # URL의 /api/mcp/run은 Python 함수 이름이 아니라 HTTP 주소 규칙이다.
-        # 이 주소를 실제 Python 함수 run_mcp_agent()에 연결하는 것은 Backend의 데코레이터다.
-        result = post("/api/mcp/run", {"question": question})
-        st.success(result["answer"])
-        left, right = st.columns(2)
-        left.metric("GPT 호출 횟수", result["llm_calls"])
-        right.metric("실행된 Tool 수", len(result["trace"]))
-        st.subheader("GPT가 선택하고 MCP가 실행한 Tool")
-        # enumerate()는 리스트의 순번과 원소를 함께 준다.
-        # index는 현재 코드에서 제목 번호에 직접 쓰이지 않지만, 학습용으로 순번을 받을 수 있다.
-        for index, item in enumerate(result["trace"], start=1):
-            title = (
-                f"Round {item['round']} · {item['server']} · "
-                f"{item['tool']}"
-            )
-            with st.expander(title, expanded=True):
-                st.caption(f"Public Tool: {item['public_tool']}")
-                st.write("Arguments")
-                st.json(item["arguments"])
-                st.write("Tool Result")
-                st.code(item["result"])
-                if item["is_error"]:
-                    st.error("MCP Tool 실행 오류")
-        with st.expander("전체 응답 JSON"):
-            st.json(result)
-    except httpx.HTTPError as error:
-        st.error(f"Backend 호출 실패: {error}")
+st.divider()
+st.subheader("실행 흐름")
+st.caption("Weather + Place 병렬 실행  →  결과 합치기  →  Budget  →  Validation")
 
-with st.expander("MCP Resource 확인"):
-    if st.button("수하물 정책 읽기"):
+
+def agent_panel(agent, state):
+    title, subtitle = ROLES[agent]
+    with st.container(border=True):
+        st.subheader(title)
+        st.caption(subtitle)
+        status = state.get("status", "pending")
+        st.write("**" + LABELS.get(status, status) + "**")
+        if state.get("provider_requested"):
+            used = state.get("provider_used") or "대기"
+            st.caption(f"요청 {state['provider_requested']} / 실제 {used} · {state.get('model', '')}")
+        if state.get("latency_ms") is not None:
+            st.caption(f"처리 시간 {state['latency_ms'] / 1000:.2f}초")
+        if state.get("error"):
+            st.warning(state["error"])
+        if state.get("answer"):
+            answer = state["answer"]
+            st.write(answer["summary"])
+            for line in answer["details"]:
+                st.write("• " + line)
+            for warning in answer["cautions"]:
+                st.caption(warning)
+
+
+@st.fragment(run_every=1.0 if st.session_state.get("active") else None)
+def monitor():
+    run = st.session_state.get("snapshot")
+    if st.session_state.get("active"):
         try:
-            st.json(get("/api/mcp/baggage-policy"))
-        except httpx.HTTPError as error:
-            st.error(f"Backend 호출 실패: {error}")
+            run = api("GET", "/api/multi/runs/" + st.session_state["run_id"])
+            st.session_state["snapshot"] = run
+        except httpx.HTTPStatusError as error:
+            if error.response.status_code == 404:
+                st.session_state["active"] = False
+                st.session_state["lost_run"] = True
+                st.rerun()
+            st.warning("상태 조회에 실패했습니다. 자동으로 다시 확인합니다.")
+        except httpx.HTTPError:
+            st.warning("연결이 잠시 끊겼습니다. 자동으로 다시 확인합니다.")
+        if run and run["status"] != "running":
+            st.session_state["active"] = False
+            st.rerun()
+    if st.session_state.get("lost_run"):
+        st.warning("배포·재시작으로 실행 기록이 만료되었습니다. 새 실행을 시작하세요.")
+    if run:
+        st.caption(f"실행 ID {run['run_id']} · {LABELS.get(run['status'], run['status'])}")
+        done = sum(s["status"] not in ("pending", "running") for s in run["agents"].values())
+        st.progress(done / 4, text=f"4개 역할 중 {done}개 처리")
+        evidence = run.get("evidence")
+        if evidence:
+            message = f"데이터 출처: {evidence['source']} · {evidence['reason']}"
+            if evidence["source"] == "mock" or evidence["facts"].get("is_mock"):
+                st.warning(message)
+            else:
+                st.info(message)
+            st.caption("자료 기준: " + evidence["facts"]["as_of"])
+    for pair in [("weather_agent", "place_agent"), ("budget_agent", "validation_agent")]:
+        for column, agent in zip(st.columns(2), pair):
+            with column:
+                agent_panel(agent, run["agents"][agent] if run else {})
+    if run and run.get("budget"):
+        st.subheader("계산된 예산")
+        costs = run["budget"]
+        st.table([{"항목": k, "금액 (원)": f"{v:,}"} for k, v in costs["items"].items()])
+        st.write(f"**합계 {costs['total']:,}원 / 남은 예산 {costs['remaining']:,}원**")
+        st.caption(costs["scope"])
+    if run and run.get("validation"):
+        validation = run["validation"]
+        if validation["verdict"] == "passed":
+            st.success("검증 완료: 실행 및 예산 조건을 충족했습니다.")
+        else:
+            st.warning("추가 확인 필요: 모의 데이터·모의 응답·예산 초과·실패 항목을 확인하세요.")
+        st.caption(validation["notice"])
+    if run:
+        if run.get("storage"):
+            st.caption("실행 기록 저장 · PostgreSQL: " + run["storage"].get("postgres", "대기") + " / Redis: " + run["storage"].get("redis", "대기"))
+        with st.expander("실행 타임라인", expanded=True):
+            st.dataframe(run["trace"], hide_index=True)
+        with st.expander("백엔드 응답 · 데이터 연결 결과"):
+            st.json(run)
+        st.download_button("실행 결과 JSON 다운로드", data=__import__('json').dumps(run, ensure_ascii=False, indent=2), file_name="trip-" + run["run_id"] + ".json", mime="application/json")
+
+
+monitor()
+with st.expander("저장된 실행 내역"):
+    if st.button("DB 실행 내역 조회"):
+        try:
+            records = api("GET", "/api/multi/history")
+            st.session_state["history"] = records
+        except httpx.HTTPError:
+            st.warning("실행 내역 저장소에 연결할 수 없습니다.")
+    if st.session_state.get("history"):
+        records = st.session_state["history"]
+        st.caption("조회 저장소: " + records["storage"])
+        st.dataframe(records["runs"], hide_index=True)
+        if records["runs"]:
+            record_id = st.selectbox("저장된 실행 선택", [r["run_id"] for r in records["runs"]])
+            if st.button("저장된 결과 열기", disabled=st.session_state.get("active", False)):
+                try:
+                    st.session_state["snapshot"] = api("GET", "/api/multi/runs/" + record_id)
+                    st.rerun()
+                except httpx.HTTPError:
+                    st.warning("해당 결과를 불러오지 못했습니다.")
+st.caption("실행 내역은 전용 PostgreSQL에, 상태 캐시는 Redis에 저장합니다. 연결 실패 시 메모리로 동작하며 이 경우 재배포 시 기록이 사라집니다.")

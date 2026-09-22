@@ -110,6 +110,14 @@ def baggage_policy() -> str:
 
 
 # [Execution boundary] Starts only when run directly, not when imported.
+
+@mcp.tool()
+async def get_trip_evidence(city: Literal["서울", "부산", "제주"], mode: Literal["auto", "mock"] = "auto") -> dict:
+    """Read cached/database travel facts; explicitly label sample data on failure."""
+    from backend.app.multi_data import load_evidence
+    return (await load_evidence(city, mode)).model_dump()
+
+
 @mcp.custom_route("/health", methods=["GET"])
 async def health(request):
     return JSONResponse({"status": "ok"})

@@ -1,14 +1,20 @@
 {
-  "generatedAt": "2026-09-21T09:02:02.590Z",
+  "generatedAt": "2026-09-22T01:21:04.522Z",
   "scope": "First-party source inventory; excludes dependencies/builds/secrets/data directories. JS/TS literal relative import/require/file-URL edges only; heuristic, not complete semantic analysis. Java/Python inventoried but not resolved. No runtime connectivity claim.",
   "files": [
     "DEPLOYMENT.md",
+    "MULTI_AGENT.md",
     "README.md",
     "backend/__init__.py",
     "backend/app/__init__.py",
     "backend/app/agent.py",
     "backend/app/main.py",
     "backend/app/mcp_client.py",
+    "backend/app/multi_data.py",
+    "backend/app/multi_models.py",
+    "backend/app/multi_orchestration.py",
+    "backend/app/multi_providers.py",
+    "backend/app/multi_storage.py",
     "backend/app/schemas.py",
     "detail.md",
     "docker-compose.yml",
@@ -21,18 +27,15 @@
     "mcp_server/travel_server.py",
     "mcpdonotknow.md",
     "ops/check_services.py",
+    "ops/travel_facts.sql",
     "solution/README.md",
-    "starter/README.md"
+    "starter/README.md",
+    "tests/test_multi_agent.py",
+    "tests/ui_smoke.py"
   ],
   "edges": [],
   "unresolved": [],
-  "signals": [
-    {
-      "file": "frontend/app.py",
-      "kind": "network",
-      "line": 14
-    }
-  ],
+  "signals": [],
   "cycles": [],
   "architecture": {
     "nodes": [
@@ -96,6 +99,25 @@
           "ops/check_services.py",
           "env/compose.yml"
         ]
+      },
+      {
+        "id": "orchestration",
+        "label": "Weather + Place -> Budget -> Validation",
+        "status": "implemented",
+        "evidence": [
+          "backend/app/multi_orchestration.py",
+          "backend/app/multi_providers.py"
+        ]
+      },
+      {
+        "id": "logs",
+        "label": "Dedicated PostgreSQL / Redis history",
+        "status": "implemented",
+        "description": "Separate LOG URLs; reachability is not implied by this code graph.",
+        "evidence": [
+          "backend/app/multi_storage.py",
+          "env/compose.yml"
+        ]
       }
     ],
     "edges": [
@@ -139,6 +161,30 @@
         "from": "ci",
         "to": "data",
         "label": "read-only preflight; optional for demo",
+        "status": "implemented"
+      },
+      {
+        "from": "backend",
+        "to": "orchestration",
+        "label": "four role API",
+        "status": "implemented"
+      },
+      {
+        "from": "orchestration",
+        "to": "travel",
+        "label": "get_trip_evidence",
+        "status": "implemented"
+      },
+      {
+        "from": "travel",
+        "to": "data",
+        "label": "shared facts; mock fallback",
+        "status": "implemented"
+      },
+      {
+        "from": "orchestration",
+        "to": "logs",
+        "label": "initial and final run snapshots",
         "status": "implemented"
       }
     ]

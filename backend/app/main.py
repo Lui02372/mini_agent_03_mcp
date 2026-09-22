@@ -119,3 +119,8 @@ async def run_mcp_agent(payload: McpRunRequest) -> McpRunResult:
     except Exception as error:
         # 그 외 예상하지 못한 연결·서버 오류는 503으로 변환한다.
         raise HTTPException(status_code=503, detail=f"MCP Agent 실행 실패: {error}") from error
+
+
+# Four-role orchestration API; legacy MCP routes remain available.
+from .multi_orchestration import router as multi_router
+app.include_router(multi_router)

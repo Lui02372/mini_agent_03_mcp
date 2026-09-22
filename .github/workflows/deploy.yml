@@ -24,6 +24,7 @@ jobs:
           export FRONTEND_PORT=18501 FRONTEND_BIND_IP=127.0.0.1
           docker compose --env-file env/.env.ci -f env/compose.yml config --quiet
           docker build -t "$APP_IMAGE" .
+          docker run --rm "$APP_IMAGE" python -m unittest discover -s tests -v
           docker compose --env-file env/.env.ci -f env/compose.yml up -d --no-build --wait --wait-timeout 180
           docker compose --env-file env/.env.ci -f env/compose.yml exec -T backend python ops/check_services.py
           curl --fail http://127.0.0.1:18501/_stcore/health

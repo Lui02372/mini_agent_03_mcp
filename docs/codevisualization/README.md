@@ -1,8 +1,8 @@
 # Code Visualization
 
-Generated: 2026-09-21T09:02:02.590Z
+Generated: 2026-09-22T01:21:04.522Z
 
-Open index.html (offline, no CDN). Files: 21; static edges: 0; unresolved: 0; cycles: 0.
+Open index.html (offline, no CDN). Files: 30; static edges: 0; unresolved: 0; cycles: 0.
 
 First-party source inventory; excludes dependencies/builds/secrets/data directories. JS/TS literal relative import/require/file-URL edges only; heuristic, not complete semantic analysis. Java/Python inventoried but not resolved. No runtime connectivity claim.
 

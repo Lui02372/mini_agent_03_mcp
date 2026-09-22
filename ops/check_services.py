@@ -3,6 +3,7 @@ import argparse
 import os
 import urllib.request
 import json
+import time
 
 
 def check_app():
@@ -12,6 +13,24 @@ def check_app():
         if path == "/api/mcp/status":
             assert data["status"] == "connected" and data["tool_count"] >= 3
         print("PASS", path)
+    payload = {"data_mode": "mock", "providers": {a: "mock" for a in
+               ("weather_agent", "place_agent", "budget_agent", "validation_agent")}}
+    request = urllib.request.Request("http://backend:8000/api/multi/runs",
+              data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(request, timeout=10) as response:
+        run = json.load(response)
+    deadline = time.monotonic() + 30
+    while run["status"] == "running" and time.monotonic() < deadline:
+        time.sleep(0.3)
+        with urllib.request.urlopen("http://backend:8000/api/multi/runs/" + run["run_id"], timeout=10) as response:
+            run = json.load(response)
+    assert run["status"] == "completed", run["status"]
+    assert len(run["agents"]) == 4
+    assert all(a["provider_used"] == "mock" for a in run["agents"].values())
+    assert run["validation"]["mock_data"]
+    assert "mcp" not in run["evidence"]["checks"], "MCP evidence tool was unavailable"
+    print("PASS four-agent orchestration through MCP, labelled mock and validation")
+
 
 
 def check_data():
