@@ -13,11 +13,11 @@ from .multi_models import AgentAnswer
 def model_name(provider):
     return {'openai': os.getenv('OPENAI_MODEL', 'gpt-4.1-mini'),
             'gemini': os.getenv('GEMINI_MODEL', 'gemini-3.5-flash'),
-            'ollama': os.getenv('OLLAMA_MODEL', 'llama3.2'), 'mock': 'deterministic-demo'}[provider]
+            'ollama': os.getenv('OLLAMA_MODEL', 'qwen3:1.7b'), 'mock': 'deterministic-demo'}[provider]
 
 
 async def structured(provider: str, prompt: str) -> AgentAnswer:
-    async with asyncio.timeout(35):
+    async with asyncio.timeout(300 if provider == 'ollama' else 35):
         if provider == 'openai':
             if not os.getenv('OPENAI_API_KEY'):
                 raise ValueError('missing key')
@@ -40,9 +40,10 @@ async def structured(provider: str, prompt: str) -> AgentAnswer:
                             'max_output_tokens': 1200})
                 return AgentAnswer.model_validate_json(result.text or '')
         if provider == 'ollama':
-            async with httpx.AsyncClient(timeout=30) as client:
+            async with httpx.AsyncClient(timeout=290) as client:
                 response = await client.post(os.getenv('OLLAMA_BASE_URL', 'http://host.docker.internal:11434').rstrip('/') + '/api/chat',
-                    json={'model': model_name(provider), 'stream': False,
+                    json={'model': model_name(provider), 'stream': False, 'think': False,
+                          'options': {'num_ctx': 3072, 'num_predict': 450, 'temperature': 0.1, 'num_thread': 2},
                           'messages': [{'role': 'user', 'content': prompt}],
                           'format': AgentAnswer.model_json_schema()})
                 response.raise_for_status()

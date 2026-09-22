@@ -15,13 +15,18 @@ class TripRequest(BaseModel):
     question: str = Field(default='날씨를 고려한 여행 장소와 예산을 추천해 주세요.', min_length=1, max_length=1000)
     providers: dict[AgentId, Provider] = Field(default_factory=dict)
     data_mode: Literal['auto', 'mock'] = 'auto'
-    allow_model_mock: bool = True
+    allow_model_mock: bool = False
+    hotel_per_night: int = Field(default=80000, ge=0, le=10000000)
+    food_per_day: int = Field(default=30000, ge=0, le=1000000)
+    transport_per_day: int = Field(default=15000, ge=0, le=1000000)
 
 
 class Place(BaseModel):
     name: str = Field(min_length=1, max_length=100)
-    admission: int = Field(ge=0, le=1000000)
+    admission: int | None = Field(default=None, ge=0, le=1000000)
     outdoor: bool
+    source_url: str = ''
+    note: str = ''
 
 
 class TripFacts(BaseModel):
@@ -34,6 +39,9 @@ class TripFacts(BaseModel):
     food_per_day: int = Field(ge=0, le=1000000)
     transport_per_day: int = Field(ge=0, le=1000000)
     as_of: str = Field(default='확인되지 않음', max_length=100)
+    fetched_at: str = ''
+    sources: list[dict[str, str]] = Field(default_factory=list)
+    budget_basis: str = '사용자 입력 계획 단가; 숙박·식비·교통비의 시장 견적이 아닙니다.'
 
 
 class AgentAnswer(BaseModel):

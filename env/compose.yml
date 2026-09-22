@@ -25,6 +25,9 @@ x-data-env: &data-env
   REDIS_PASSWORD: ${REDIS_PASSWORD:-}
   REDIS_DB: ${REDIS_DB:-0}
   REDIS_TLS: ${REDIS_TLS:-false}
+  FACTS_DATABASE_URL: ${FACTS_DATABASE_URL:-}
+  FACTS_REDIS_URL: ${FACTS_REDIS_URL:-}
+  REQUIRE_REAL_DATA: ${REQUIRE_REAL_DATA:-false}
   DATABASE_URL: ${DATABASE_URL:-}
   REDIS_URL: ${REDIS_URL:-}
 services:
@@ -47,6 +50,8 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       <<: *data-env
+      ENABLE_DEMO: ${ENABLE_DEMO:-true}
+      MAX_CONCURRENT_RUNS: ${MAX_CONCURRENT_RUNS:-4}
       LOG_DATABASE_URL: ${LOG_DATABASE_URL:-}
       LOG_REDIS_URL: ${LOG_REDIS_URL:-}
       TRAVEL_MCP_URL: http://travel-mcp-server:8010/mcp
@@ -55,11 +60,11 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
-      WEATHER_AGENT_PROVIDER: ${WEATHER_AGENT_PROVIDER:-gemini}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:1.7b}
+      WEATHER_AGENT_PROVIDER: ${WEATHER_AGENT_PROVIDER:-ollama}
       PLACE_AGENT_PROVIDER: ${PLACE_AGENT_PROVIDER:-ollama}
-      BUDGET_AGENT_PROVIDER: ${BUDGET_AGENT_PROVIDER:-openai}
-      VALIDATION_AGENT_PROVIDER: ${VALIDATION_AGENT_PROVIDER:-openai}
+      BUDGET_AGENT_PROVIDER: ${BUDGET_AGENT_PROVIDER:-ollama}
+      VALIDATION_AGENT_PROVIDER: ${VALIDATION_AGENT_PROVIDER:-ollama}
     depends_on:
       travel-mcp-server:
         condition: service_healthy

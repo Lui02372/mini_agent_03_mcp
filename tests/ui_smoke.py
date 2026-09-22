@@ -19,7 +19,7 @@ with sync_playwright() as p:
     page.get_by_text('모의 데이터: 외부 DB 없이 실행', exact=True).click()
     page.get_by_role('button', name='멀티에이전트 실행', exact=True).click()
     expect(page.get_by_text('4개 역할 중 4개 처리', exact=True)).to_be_visible(timeout=45000)
-    expect(page.get_by_text('추가 확인 필요: 모의 데이터·모의 응답·예산 초과·실패 항목을 확인하세요.', exact=True)).to_be_visible()
+    expect(page.get_by_text('추가 확인 필요: 요금 미확인·예산 초과·모의 사용·실패 항목을 확인하세요.', exact=True)).to_be_visible()
     for name in ['Weather agent', 'Place agent', 'Budget agent', 'Validation agent']:
         expect(page.get_by_role('heading', name=name, exact=True)).to_be_visible()
     expect(page.get_by_role('button', name='실행 결과 JSON 다운로드')).to_be_visible()

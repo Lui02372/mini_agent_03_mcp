@@ -1,12 +1,10 @@
-"""Read-only shared data access. Empty/unavailable data becomes labelled fixtures.
-
-No existing shared schema is modified. Operators may provision travel_facts
-using ops/travel_facts.sql. Mock data is never cached as database evidence.
-"""
+"""Dedicated source-backed production facts; legacy demo reads remain optional."""
 import asyncio
 import json
 import os
 import psycopg
+from psycopg.types.json import Jsonb
+from .live_sources import collect_facts, is_fresh
 from redis.asyncio import Redis
 from redis.backoff import NoBackoff
 from redis.retry import Retry
@@ -28,6 +26,8 @@ def mock_evidence(city: str, reason: str, checks=None) -> Evidence:
 def redis_client():
     options = dict(decode_responses=True, socket_connect_timeout=2,
                    socket_timeout=2, retry=Retry(NoBackoff(), 0))
+    if os.getenv('FACTS_REDIS_URL'):
+        return Redis.from_url(os.environ['FACTS_REDIS_URL'], **options)
     if os.getenv('REDIS_URL'):
         return Redis.from_url(os.environ['REDIS_URL'], **options)
     return Redis(host=os.getenv('REDIS_HOST', '127.0.0.1'),
@@ -39,7 +39,9 @@ def redis_client():
 
 async def connect_postgres():
     params = dict(connect_timeout=2, options='-c statement_timeout=2000')
-    if os.getenv('DATABASE_URL'):
+    if os.getenv('FACTS_DATABASE_URL'):
+        connection = await psycopg.AsyncConnection.connect(os.environ['FACTS_DATABASE_URL'], **params)
+    elif os.getenv('DATABASE_URL'):
         connection = await psycopg.AsyncConnection.connect(os.environ['DATABASE_URL'], **params)
     else:
         connection = await psycopg.AsyncConnection.connect(
@@ -64,6 +66,8 @@ async def read_postgres(city: str):
 async def load_evidence(city: str, mode: str = 'auto') -> Evidence:
     if mode == 'mock':
         return mock_evidence(city, '사용자가 모의 데이터 모드를 선택했습니다.')
+    if os.getenv('REQUIRE_REAL_DATA', 'false').lower() == 'true':
+        return await load_live_evidence(city)
     checks = {}
     key = 'mini-agent-mcp:v2:facts:' + city
     try:
@@ -96,3 +100,34 @@ async def load_evidence(city: str, mode: str = 'auto') -> Evidence:
     except Exception as error:
         checks['postgres'] = type(error).__name__
     return mock_evidence(city, 'DB 데이터가 없거나 사용할 수 없어 교육용 샘플로 대체했습니다.', checks)
+
+
+async def load_live_evidence(city):
+    """Dedicated store only; production never silently returns fixtures."""
+    if not os.getenv('FACTS_DATABASE_URL'):
+        raise RuntimeError('Dedicated facts database is not configured')
+    key = 'mini-agent-mcp:v3:facts:' + city
+    try:
+        async with asyncio.timeout(3), redis_client() as client:
+            raw = await client.get(key)
+        if raw:
+            facts = TripFacts.model_validate_json(raw)
+            if facts.city == city and is_fresh(facts):
+                return Evidence(facts=facts, source='redis', reason='전용 DB의 출처 확인 자료 · Redis 캐시')
+    except Exception:
+        pass
+    async with asyncio.timeout(5):
+        raw = await read_postgres(city)
+    facts = TripFacts.model_validate(raw) if raw else None
+    if not facts or facts.city != city or not is_fresh(facts):
+        facts = await collect_facts(city)
+        async with asyncio.timeout(5), await connect_postgres() as conn:
+            await conn.execute("INSERT INTO mini_agent_mcp.travel_facts(city,payload) VALUES (%s,%s) "
+                               "ON CONFLICT(city) DO UPDATE SET payload=EXCLUDED.payload, updated_at=now()",
+                               (city, Jsonb(facts.model_dump())))
+    try:
+        async with asyncio.timeout(3), redis_client() as client:
+            await client.set(key, facts.model_dump_json(), ex=300)
+    except Exception:
+        pass
+    return Evidence(facts=facts, source='postgres', reason='전용 PostgreSQL · 공식 관광정보 + Open-Meteo 모델 날씨')

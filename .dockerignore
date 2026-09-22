@@ -8,6 +8,7 @@
 !mcp_server/**
 !ops/
 !ops/check_services.py
+!ops/refresh_facts.py
 **/__pycache__
 **/*.pyc
 !.streamlit/

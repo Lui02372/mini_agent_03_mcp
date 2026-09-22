@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-22T01:21:04.522Z",
+  "generatedAt": "2026-09-22T01:48:09.739Z",
   "scope": "First-party source inventory; excludes dependencies/builds/secrets/data directories. JS/TS literal relative import/require/file-URL edges only; heuristic, not complete semantic analysis. Java/Python inventoried but not resolved. No runtime connectivity claim.",
   "files": [
     "DEPLOYMENT.md",
@@ -8,6 +8,7 @@
     "backend/__init__.py",
     "backend/app/__init__.py",
     "backend/app/agent.py",
+    "backend/app/live_sources.py",
     "backend/app/main.py",
     "backend/app/mcp_client.py",
     "backend/app/multi_data.py",
@@ -27,10 +28,13 @@
     "mcp_server/travel_server.py",
     "mcpdonotknow.md",
     "ops/check_services.py",
+    "ops/refresh_facts.py",
     "ops/travel_facts.sql",
     "solution/README.md",
     "starter/README.md",
+    "tests/test_live_sources.py",
     "tests/test_multi_agent.py",
+    "tests/ui_live_smoke.py",
     "tests/ui_smoke.py"
   ],
   "edges": [],
@@ -92,11 +96,12 @@
       },
       {
         "id": "data",
-        "label": "External PostgreSQL / Redis check",
+        "label": "Dedicated facts PostgreSQL / Redis",
         "status": "implemented",
-        "description": "Code configuration; external data reachability must be checked separately.",
+        "description": "Production FACTS URLs; legacy shared URLs retained separately.",
         "evidence": [
-          "ops/check_services.py",
+          "backend/app/multi_data.py",
+          "backend/app/live_sources.py",
           "env/compose.yml"
         ]
       },
@@ -117,6 +122,18 @@
         "evidence": [
           "backend/app/multi_storage.py",
           "env/compose.yml"
+        ]
+      },
+      {
+        "id": "ollama",
+        "label": "EC2 Ollama qwen3:1.7b",
+        "status": "implemented",
+        "evidence": [
+          "backend/app/multi_providers.py"
+        ],
+        "manualEvidence": [
+          "ops/ollama.service",
+          "ops/setup_ollama.sh"
         ]
       }
     ],
@@ -178,13 +195,19 @@
       {
         "from": "travel",
         "to": "data",
-        "label": "shared facts; mock fallback",
+        "label": "source-backed facts with freshness checks",
         "status": "implemented"
       },
       {
         "from": "orchestration",
         "to": "logs",
         "label": "initial and final run snapshots",
+        "status": "implemented"
+      },
+      {
+        "from": "orchestration",
+        "to": "ollama",
+        "label": "real structured inference",
         "status": "implemented"
       }
     ]

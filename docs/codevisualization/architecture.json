@@ -53,11 +53,12 @@
     },
     {
       "id": "data",
-      "label": "External PostgreSQL / Redis check",
+      "label": "Dedicated facts PostgreSQL / Redis",
       "status": "implemented",
-      "description": "Code configuration; external data reachability must be checked separately.",
+      "description": "Production FACTS URLs; legacy shared URLs retained separately.",
       "evidence": [
-        "ops/check_services.py",
+        "backend/app/multi_data.py",
+        "backend/app/live_sources.py",
         "env/compose.yml"
       ]
     },
@@ -78,6 +79,18 @@
       "evidence": [
         "backend/app/multi_storage.py",
         "env/compose.yml"
+      ]
+    },
+    {
+      "id": "ollama",
+      "label": "EC2 Ollama qwen3:1.7b",
+      "status": "implemented",
+      "evidence": [
+        "backend/app/multi_providers.py"
+      ],
+      "manualEvidence": [
+        "ops/ollama.service",
+        "ops/setup_ollama.sh"
       ]
     }
   ],
@@ -139,13 +152,19 @@
     {
       "from": "travel",
       "to": "data",
-      "label": "shared facts; mock fallback",
+      "label": "source-backed facts with freshness checks",
       "status": "implemented"
     },
     {
       "from": "orchestration",
       "to": "logs",
       "label": "initial and final run snapshots",
+      "status": "implemented"
+    },
+    {
+      "from": "orchestration",
+      "to": "ollama",
+      "label": "real structured inference",
       "status": "implemented"
     }
   ]

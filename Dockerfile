@@ -6,7 +6,7 @@ RUN pip install -r requirements.deploy.txt && useradd --create-home --uid 10001 
 COPY --chown=app:app backend/ ./backend/
 COPY --chown=app:app frontend/ ./frontend/
 COPY --chown=app:app mcp_server/ ./mcp_server/
-COPY --chown=app:app ops/check_services.py ./ops/check_services.py
+COPY --chown=app:app ops/check_services.py ops/refresh_facts.py ./ops/
 COPY --chown=app:app .streamlit/ ./.streamlit/
 COPY --chown=app:app tests/ ./tests/
 USER app

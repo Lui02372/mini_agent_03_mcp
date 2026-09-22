@@ -4,9 +4,10 @@ flowchart LR
  a2["Travel HTTP MCP · implemented"]
  a3["Policy stdio MCP · implemented"]
  a4["GitHub Actions / EC2 runner · implemented"]
- a5["External PostgreSQL / Redis check · implemented"]
+ a5["Dedicated facts PostgreSQL / Redis · implemented"]
  a6["Weather + Place -> Budget -> Validation · implemented"]
  a7["Dedicated PostgreSQL / Redis history · implemented"]
+ a8["EC2 Ollama qwen3:1.7b · implemented"]
  a0 --> a1
  a1 --> a2
  a1 --> a3
@@ -18,3 +19,4 @@ flowchart LR
  a6 --> a2
  a2 --> a5
  a6 --> a7
+ a6 --> a8

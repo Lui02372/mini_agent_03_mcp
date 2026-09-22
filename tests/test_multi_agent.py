@@ -78,7 +78,7 @@ class OrchestrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(s['provider_used'] == 'openai' for s in run['agents'].values()))
 
     async def test_provider_failure_falls_back_visibly(self):
-        run = await self.run_trip(TripRequest(providers={a: 'openai' for a in AGENTS}), AsyncMock(side_effect=TimeoutError('secret must not leak')))
+        run = await self.run_trip(TripRequest(providers={a: 'openai' for a in AGENTS}, allow_model_mock=True), AsyncMock(side_effect=TimeoutError('secret must not leak')))
         self.assertEqual(run['status'], 'completed')
         self.assertTrue(all(s['error'] and s['provider_used'] == 'mock' for s in run['agents'].values()))
         self.assertNotIn('secret must not leak', str(run))
