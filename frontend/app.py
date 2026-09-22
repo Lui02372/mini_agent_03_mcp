@@ -31,6 +31,9 @@ with st.sidebar:
     if st.button("전체 모델을 Ollama로 설정"):
         for agent in ROLES:
             st.session_state["provider_" + agent] = "ollama"
+    if st.button("전체 모델을 Gemma로 설정"):
+        for agent in ROLES:
+            st.session_state["provider_" + agent] = "gemma"
     st.caption("EC2 CPU 추론: 네 역할 분석에 약 2~3분이 걸릴 수 있습니다.")
     if config.get("demo_enabled", True) and st.button("전체 모델을 mock으로 전환"):
         for agent in ROLES:
@@ -39,16 +42,42 @@ with st.sidebar:
     for agent, (title, _) in ROLES.items():
         default = config["defaults"].get(agent, "mock")
         choices = config["providers"]
-        st.session_state.setdefault("provider_" + agent, default if default in choices else "mock")
-        selected[agent] = st.selectbox(title, choices, index=None, key="provider_" + agent)
+        if st.session_state.get("provider_" + agent) not in choices:
+            st.session_state["provider_" + agent] = default if default in choices else "ollama"
+        selected[agent] = st.selectbox(title, choices, index=None, format_func=lambda x: {"ollama": "Ollama · Qwen", "gemma": "Gemma · Ollama", "mock": "Mock · 테스트"}.get(x, x), key="provider_" + agent)
         st.caption(config["models"].get(selected[agent], "모델을 선택해 주세요."))
         if not config["configured"].get(selected[agent]):
             st.caption("서버 키/주소 미설정 · 모의 응답 허용 시 대체됩니다.")
     allow_mock = st.checkbox("모델 호출 실패 시 모의 응답 허용", value=False) if config.get("demo_enabled", True) else False
-    st.caption("기본 모델은 EC2 Ollama입니다. OpenAI·Gemini는 유효한 키와 사용 한도가 필요합니다.")
+    st.caption("Ollama(Qwen)와 Gemma 모두 EC2에서 실행합니다.")
 
+@st.fragment
+def connection_panel():
+    with st.expander("DB · Redis 연결과 데이터 흐름", expanded=True):
+        st.caption("멀티에이전트 전용 저장소 · 주소와 접속 계정은 공개하지 않습니다.")
+        st.button("연결 상태 새로 확인", key="refresh_connections")
+        try:
+            status = api("GET", "/api/multi/data-status")
+            labels = {"connected": "연결 확인", "unavailable": "연결 확인 필요", "not_configured": "미설정"}
+            roles = {"facts_postgres": "여행 데이터 · PostgreSQL", "facts_redis": "여행 캐시 · Redis",
+                     "history_postgres": "실행 기록 · PostgreSQL", "history_redis": "결과 캐시 · Redis"}
+            for col, (key, title) in zip(st.columns(4), roles.items()):
+                with col:
+                    st.write("**" + title + "**")
+                    st.write(labels.get(status["services"].get(key), "확인 대기"))
+            st.caption("최근 점검: " + status["checked_at"] + " · 점검 결과는 최대 15초 재사용합니다.")
+        except httpx.HTTPError:
+            st.info("연결 상태를 조회하지 못했습니다. 새로 확인을 눌러 주세요.")
+        st.write("**조회**  프론트 → 백엔드 → MCP → Redis 캐시 → PostgreSQL 여행 데이터")
+        st.caption("유효한 캐시가 없으면 DB를 읽고, 자료가 오래되면 출처 API로 갱신합니다.")
+        st.write("**저장**  에이전트 실행 → PostgreSQL 실행·역할별 결과·타임라인 + Redis 결과 캐시")
+        st.caption("PostgreSQL은 기록을 보관하고 Redis 결과 캐시는 1시간 유지합니다. 실행 중 진행 상태는 백엔드 메모리에서 조회합니다.")
+        st.caption("연결 점검은 DB 읽기와 Redis PING입니다. 실제 저장 성공 여부는 아래 실행 결과에서 별도로 확인합니다.")
+
+
+connection_panel()
 active = st.session_state.get("active", False)
-with st.form("trip_request"):
+with st.container(border=True):
     a, b, c = st.columns(3)
     city = a.selectbox("도시", ["부산", "서울", "제주"])
     days = b.number_input("여행 일수", min_value=1, max_value=14, value=2)
@@ -59,15 +88,35 @@ with st.form("trip_request"):
         data_mode = st.radio("데이터 모드", ["auto", "mock"], format_func=lambda x: "자동: MCP → Redis / PostgreSQL → 없으면 모의 데이터" if x == "auto" else "모의 데이터: 외부 DB 없이 실행", horizontal=True)
     else:
         st.caption("전용 DB의 공식 관광정보와 현재 모델 날씨를 조회합니다. 오래된 날씨는 자동 갱신합니다.")
-    with st.expander("계획 단가 · 실제 예약 견적 아님"):
-        hotel = st.number_input("숙박 1박 계획 단가 (원)", min_value=0, max_value=10000000, value=80000, step=10000)
-        food = st.number_input("식비 1일 계획 단가 (원)", min_value=0, max_value=1000000, value=30000, step=5000)
-        transport = st.number_input("현지 교통 1일 계획 단가 (원)", min_value=0, max_value=1000000, value=15000, step=1000)
-    submitted = st.form_submit_button("멀티에이전트 실행", type="primary", disabled=active or any(value is None for value in selected.values()))
+    st.subheader("1인 예산 상세 계획")
+    st.caption("아래 금액은 직접 입력하는 계획 단가입니다. 실제 호텔 예약가·식당 메뉴 가격을 조회한 값이 아닙니다.")
+    h1, h2, h3 = st.columns(3)
+    travelers = h1.number_input("함께 숙박하는 인원", min_value=1, max_value=10, value=1)
+    rooms = h2.number_input("객실 수", min_value=1, max_value=10, value=1)
+    lodging = h3.selectbox("숙소 유형", ["호텔", "비즈니스호텔", "게스트하우스", "리조트", "숙박 없음"])
+    hotel = st.number_input("객실당 1박 계획 금액 (원)", min_value=0, max_value=10000000, value=80000, step=10000, disabled=lodging == "숙박 없음")
+    if lodging == "숙박 없음":
+        hotel = 0
+    st.caption(f"숙박: {max(0, days - 1)}박 × 객실당 금액 × {rooms}객실 ÷ {travelers}명으로 1인 숙박비를 계산합니다.")
+    meal_plan = []
+    defaults = {"아침": (8000, ["간단식 · 김밥/샌드위치", "숙소 조식", "국밥/해장국", "숙박비에 포함", "식사 제외"]),
+                "점심": (12000, ["현지식 · 국밥/백반", "면류/분식", "고기/생선 정식", "식사 제외"]),
+                "저녁": (10000, ["현지식 · 백반/찌개", "고기구이", "해산물/생선 요리", "식사 제외"]),
+                "카페·간식": (0, ["이용 안 함", "커피/음료", "디저트/간식"])}
+    for col, (meal_name, (price, options)) in zip(st.columns(4), defaults.items()):
+        with col:
+            style = st.selectbox(meal_name + " 식사 유형", options)
+            excluded = style in ("숙박비에 포함", "식사 제외", "이용 안 함")
+            unit_price = st.number_input(meal_name + " 1인 1회 금액 (원)", min_value=0, max_value=1000000, value=price, step=1000, disabled=excluded)
+            meal_plan.append({"name": meal_name, "style": style, "price": 0 if excluded else unit_price})
+    food = sum(m["price"] for m in meal_plan)
+    st.caption(f"1인 식비·카페: 하루 {food:,}원 × {days}일. 매일 각 항목 1회 기준이며 첫날·마지막날도 동일하게 계산합니다.")
+    transport = st.number_input("현지 교통 1인 1일 계획 금액 (원)", min_value=0, max_value=1000000, value=15000, step=1000)
+    submitted = st.button("멀티에이전트 실행", type="primary", disabled=active or any(value is None for value in selected.values()))
 if submitted:
     try:
         run = api("POST", "/api/multi/runs", json={"city": city, "days": days, "budget": budget,
-                  "question": question, "hotel_per_night": hotel, "food_per_day": food, "transport_per_day": transport, "providers": selected, "data_mode": data_mode, "allow_model_mock": allow_mock})
+                  "question": question, "travelers": travelers, "rooms": rooms, "lodging_type": lodging, "meal_plan": meal_plan, "hotel_per_night": hotel, "food_per_day": food, "transport_per_day": transport, "providers": selected, "data_mode": data_mode, "allow_model_mock": allow_mock})
         st.session_state["lost_run"] = False
         st.session_state.update(run_id=run["run_id"], snapshot=run, active=True)
         st.rerun()
@@ -150,7 +199,10 @@ def monitor():
     if run and run.get("budget"):
         st.subheader("계산된 예산")
         costs = run["budget"]
-        st.table([{"항목": k, "금액 (원)": f"{v:,}"} for k, v in costs["items"].items()])
+        if costs.get("line_items"):
+            st.dataframe([{"항목": line["category"], "유형·계획": line["detail"], "계산 근거": line["formula"], "1인 합계 (원)": "미확인 · 제외" if line["per_person_total"] is None else f"{line['per_person_total']:,}"} for line in costs["line_items"]], hide_index=True)
+        else:
+            st.table([{"항목": k, "금액 (원)": f"{v:,}"} for k, v in costs["items"].items()])
         st.write(f"**합계 {costs['total']:,}원 / 남은 예산 {costs['remaining']:,}원**")
         st.caption(costs["scope"])
         if costs.get("unpriced_places"):

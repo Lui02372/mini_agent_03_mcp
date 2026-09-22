@@ -17,7 +17,8 @@
       "description": "Code configuration; external data reachability must be checked separately.",
       "evidence": [
         "backend/app/main.py",
-        "backend/app/mcp_client.py"
+        "backend/app/mcp_client.py",
+        "backend/app/data_status.py"
       ]
     },
     {
@@ -83,7 +84,7 @@
     },
     {
       "id": "ollama",
-      "label": "EC2 Ollama qwen3:1.7b",
+      "label": "EC2 Ollama: Qwen + Gemma",
       "status": "implemented",
       "evidence": [
         "backend/app/multi_providers.py"

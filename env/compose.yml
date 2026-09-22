@@ -55,16 +55,13 @@ services:
       LOG_DATABASE_URL: ${LOG_DATABASE_URL:-}
       LOG_REDIS_URL: ${LOG_REDIS_URL:-}
       TRAVEL_MCP_URL: http://travel-mcp-server:8010/mcp
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      GEMMA_MODEL: ${GEMMA_MODEL:-gemma3:1b}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:1.7b}
       WEATHER_AGENT_PROVIDER: ${WEATHER_AGENT_PROVIDER:-ollama}
       PLACE_AGENT_PROVIDER: ${PLACE_AGENT_PROVIDER:-ollama}
-      BUDGET_AGENT_PROVIDER: ${BUDGET_AGENT_PROVIDER:-ollama}
-      VALIDATION_AGENT_PROVIDER: ${VALIDATION_AGENT_PROVIDER:-ollama}
+      BUDGET_AGENT_PROVIDER: ${BUDGET_AGENT_PROVIDER:-gemma}
+      VALIDATION_AGENT_PROVIDER: ${VALIDATION_AGENT_PROVIDER:-gemma}
     depends_on:
       travel-mcp-server:
         condition: service_healthy

@@ -3,23 +3,22 @@
 ## Flow
 
 Weather and Place run concurrently. The orchestrator joins their results,
-then runs Budget, then Validation. Each role independently selects OpenAI,
-Gemini, Ollama or deterministic mock from the UI. The provider adapters follow
-07_multi-agent-service-ops/shared/travel_llm.py: OpenAI Responses structured
-output, Gemini generate_content structured JSON, Ollama /api/chat JSON schema.
+then runs Budget, then Validation. Each role independently selects EC2 Ollama/Qwen
+or Gemma from the UI. Both use Ollama /api/chat JSON schema output.
 The reference's contracts, role separation and join/trace pattern are adapted;
 its independent services and deployment files are not copied wholesale.
 
-The budget is computed by Python (one traveller, all listed attractions once,
+The budget is computed by Python (per traveller with shared lodging, all listed attractions once,
 no long-distance transport). LLM text cannot change the authoritative total.
 Validation flags failed roles, over-budget results and sample/mock evidence.
 Mock results never qualify for an unqualified passed verdict.
 
 ## Production real-data mode (2026-09-22)
 
-All four roles default to the real EC2 Ollama qwen3:1.7b model. OpenAI and
-Gemini adapters remain selectable but require working credentials/quotas.
-ENABLE_DEMO=false rejects mock data, mock providers and mock-on-error requests.
+Each role can select Ollama/Qwen (qwen3:1.7b) or Gemma (gemma3:1b), both hosted
+by EC2 Ollama. Defaults use Qwen for Weather/Place and Gemma for Budget/Validation.
+Production rejects cloud providers, mock data/providers and mock-on-error requests.
+Cloud adapters remain for compatibility, but no cloud credentials are forwarded by Compose.
 REQUIRE_REAL_DATA=true never returns fixtures when actual data cannot be read.
 CPU inference takes roughly 2–3 minutes for a four-role run on this 4 GB EC2;
 MAX_CONCURRENT_RUNS=1 limits contention. Weather/Place requests are issued
@@ -35,7 +34,13 @@ Place facts are a curated catalog in backend/app/live_sources.py, checked on
 2026-09-22. Place URLs and fees need editorial rechecking when updated.
 
 Hotel/food/transport numbers are user-editable planning allowances, not scraped
-market quotes. Unknown admission fees are excluded and flagged for review.
+market quotes. Lodging includes property type, price per room/night, rooms and
+travellers. Per-person lodging is ceil(nights * room_price * rooms / travellers).
+Breakfast/lunch/dinner/cafe each carry a meal style and unit price, charged once
+per travel day per person. Included breakfast/omitted meals cost zero. The form
+updates the daily meal subtotal as inputs change. Backend line_items store every
+formula and category; Budget/Validation agents receive those exact calculations.
+Unknown admission fees are excluded and flagged for review.
 
 Sources: [Open-Meteo](https://open-meteo.com/en/docs) (CC BY 4.0),
 [Visit Busan](https://www.visitbusan.net/index.do?contentsSid=22&lang_cd=ko&uc_seq=373),
@@ -94,7 +99,7 @@ Request example:
 
 Data mock and model mock are separate decisions. Real providers are still called
 when data is mocked. Disable allow_model_mock to surface failed model calls
-without simulated answers. Keys/models use OPENAI_*, GEMINI_* and OLLAMA_* envs.
+without simulated answers. Production models use OLLAMA_MODEL and GEMMA_MODEL.
 Inside Docker, localhost is the container itself. host.docker.internal points to
 the EC2 host; Ollama must actually run there or use a reachable Ollama URL.
 No Ollama model is installed automatically.
@@ -112,3 +117,14 @@ legacy MCP routes plus the complete four-role mock run through the MCP tool.
 EC2 deployment additionally verifies real data, real Ollama inference and successful history storage. Never commit runtime env files or API keys.
 Runtime env changes belong in GitHub production/RUNTIME_ENV. Main push deploys
 the frontend, backend and MCP image together. Public HTTPS is not configured.
+
+## Public connection panel
+
+GET /api/multi/data-status performs bounded, read-only checks of the configured
+FACTS and LOG PostgreSQL/Redis connections. PostgreSQL verifies its table is readable;
+Redis verifies authenticated PING. Results are cached 15 seconds with one shared lock.
+The response contains only logical roles, connected/unavailable/not_configured and
+check timestamp. No addresses, credentials, connection strings or exception details
+are returned. A successful probe does not prove write permission: the current run's
+actual persist_run result separately confirms PostgreSQL and Redis saves.
+The UI explains Redis cache -> PostgreSQL -> source refresh, and history persistence.

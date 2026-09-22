@@ -17,9 +17,10 @@ from .multi_data import mock_evidence
 from .multi_models import AGENTS, AgentAnswer, Evidence, TripRequest
 from .multi_providers import model_name, structured
 from .multi_storage import persist_run, restore_run, recent_runs
+from .data_status import data_status
 
 router = APIRouter(prefix='/api/multi', tags=['multi-agent'])
-DEFAULTS = dict(zip(AGENTS, ['ollama', 'ollama', 'ollama', 'ollama']))
+DEFAULTS = dict(zip(AGENTS, ['ollama', 'ollama', 'gemma', 'gemma']))
 GOALS = {'weather_agent': '날씨 참고자료를 해석하고 실내외 활동 주의점을 제안한다.',
          'place_agent': '제공된 장소 후보만 비교하고 선택 이유를 설명한다.',
          'budget_agent': '서버가 계산한 1인 여행 비용을 설명하고 예산 초과를 알린다.',
@@ -35,13 +36,38 @@ def providers():
 
 
 def cost_breakdown(request, facts):
-    costs = {'숙박': max(0, request.days - 1) * request.hotel_per_night,
-             '식비': request.days * request.food_per_day,
+    nights = 0 if request.lodging_type == '숙박 없음' else max(0, request.days - 1)
+    lodging_total = nights * request.hotel_per_night * request.rooms
+    lodging_per_person = (lodging_total + request.travelers - 1) // request.travelers
+    meal_daily = sum(m.price for m in request.meal_plan) if request.meal_plan else request.food_per_day
+    lines = [{'category': '숙박', 'detail': request.lodging_type,
+              'formula': f'{nights}박 × {request.hotel_per_night:,}원 × {request.rooms}객실 ÷ {request.travelers}명 (원 단위 올림)',
+              'per_person_total': lodging_per_person}]
+    if request.meal_plan:
+        for meal in request.meal_plan:
+            lines.append({'category': meal.name, 'detail': meal.style,
+                          'formula': f'1인 {meal.price:,}원 × {request.days}일',
+                          'per_person_total': meal.price * request.days})
+    else:
+        lines.append({'category': '식비', 'detail': '1인 하루 계획 식비',
+                      'formula': f'{request.food_per_day:,}원 × {request.days}일',
+                      'per_person_total': meal_daily * request.days})
+    lines.append({'category': '현지 교통', 'detail': '1인 하루 계획 교통비',
+                  'formula': f'{request.transport_per_day:,}원 × {request.days}일',
+                  'per_person_total': request.transport_per_day * request.days})
+    for place in facts.places:
+        lines.append({'category': '입장료', 'detail': place.name,
+                      'formula': '요금 미확인 · 합계 제외' if place.admission is None else f'{place.admission:,}원 × 1회',
+                      'per_person_total': place.admission})
+    costs = {'숙박': lodging_per_person, '식비·카페': request.days * meal_daily,
              '현지 교통': request.days * request.transport_per_day,
              '입장료': sum(p.admission or 0 for p in facts.places)}
-    return {'items': costs, 'total': sum(costs.values()), 'limit': request.budget,
-            'remaining': request.budget - sum(costs.values()),
-            'scope': '사용자 계획 단가 기준 · 확인된 입장료만 포함 · 숙박 예약가 및 장거리 교통 제외',
+    total = sum(costs.values())
+    return {'items': costs, 'total': total, 'limit': request.budget,
+            'remaining': request.budget - total, 'line_items': lines,
+            'travelers': request.travelers, 'rooms': request.rooms, 'nights': nights,
+            'group_lodging_total': lodging_total,
+            'scope': '1인 계획 예산 · 숙박비만 인원수로 나눔 · 식비는 매일 동일 횟수 가정 · 예약 실가격 및 장거리 교통 제외',
             'unpriced_places': [p.name for p in facts.places if p.admission is None]}
 
 
@@ -95,9 +121,9 @@ class Orchestrator:
         run_id = uuid4().hex
         selected = providers() | request.providers
         if os.getenv('ENABLE_DEMO', 'true').lower() == 'false' and (
-                request.data_mode == 'mock' or request.allow_model_mock or 'mock' in selected.values()):
+                request.data_mode == 'mock' or request.allow_model_mock or any(p not in ('ollama', 'gemma') for p in selected.values())):
             raise HTTPException(422, '운영 환경에서는 실제 데이터와 실제 모델만 사용할 수 있습니다.')
-        if any(p not in ('openai', 'gemini', 'ollama', 'mock') for p in selected.values()):
+        if any(p not in ('openai', 'gemini', 'ollama', 'gemma', 'mock') for p in selected.values()):
             raise HTTPException(503, '서버의 Agent Provider 설정을 확인하세요.')
         run = {'run_id': run_id, 'status': 'running', 'started_at': now(), 'finished_at': None,
                '_created': time.monotonic(), 'request': request.model_dump(), 'trace': [],
@@ -156,6 +182,8 @@ class Orchestrator:
             reason = '모델 연결 또는 응답 검증 실패'
             if type(error).__name__ == 'RateLimitError':
                 reason = 'API 크레딧 부족 또는 호출 한도 초과'
+            if type(error).__name__ == 'ServerError':
+                reason = 'Gemini 서비스가 요청을 처리하지 못했습니다. 잠시 후 재시도하거나 Gemma를 선택하세요.'
             state['error'] = type(error).__name__ + ' — ' + reason
             if request.allow_model_mock:
                 state['answer'] = mock_answer(name, request, evidence, run['budget']).model_dump()
@@ -214,10 +242,9 @@ engine = Orchestrator()
 @router.get('/config')
 async def config():
     demo = os.getenv('ENABLE_DEMO', 'true').lower() == 'true'
-    return {'agents': list(AGENTS), 'demo_enabled': demo, 'providers': ['openai', 'gemini', 'ollama'] + (['mock'] if demo else []),
-            'defaults': providers(), 'models': {p: model_name(p) for p in ['openai', 'gemini', 'ollama', 'mock']},
-            'configured': {'openai': bool(os.getenv('OPENAI_API_KEY')), 'gemini': bool(os.getenv('GEMINI_API_KEY')),
-                           'ollama': bool(os.getenv('OLLAMA_BASE_URL')), 'mock': True},
+    return {'agents': list(AGENTS), 'demo_enabled': demo, 'providers': ['ollama', 'gemma'] + (['mock'] if demo else []),
+            'defaults': providers(), 'models': {p: model_name(p) for p in ['ollama', 'gemma', 'mock']},
+            'configured': {'ollama': bool(os.getenv('OLLAMA_BASE_URL')), 'gemma': bool(os.getenv('OLLAMA_BASE_URL')), 'mock': True},
             'plan': [['weather_agent', 'place_agent'], ['budget_agent'], ['validation_agent']],
             'history': 'PostgreSQL history + Redis TTL; memory fallback when unavailable'}
 
@@ -243,3 +270,8 @@ async def get_run(run_id: str):
 @router.get('/history')
 async def history():
     return await recent_runs()
+
+
+@router.get('/data-status')
+async def connection_status():
+    return await data_status()

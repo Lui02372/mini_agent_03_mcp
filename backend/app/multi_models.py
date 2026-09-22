@@ -1,10 +1,17 @@
 """Four explicit roles and bounded request/evidence contracts."""
 from typing import Literal
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 AgentId = Literal['weather_agent', 'place_agent', 'budget_agent', 'validation_agent']
-Provider = Literal['openai', 'gemini', 'ollama', 'mock']
+Provider = Literal['openai', 'gemini', 'ollama', 'gemma', 'mock']
 AGENTS = ('weather_agent', 'place_agent', 'budget_agent', 'validation_agent')
+
+
+class MealPlan(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    name: Literal['아침', '점심', '저녁', '카페·간식']
+    style: str = Field(min_length=1, max_length=100)
+    price: int = Field(ge=0, le=1000000)
 
 
 class TripRequest(BaseModel):
@@ -19,6 +26,17 @@ class TripRequest(BaseModel):
     hotel_per_night: int = Field(default=80000, ge=0, le=10000000)
     food_per_day: int = Field(default=30000, ge=0, le=1000000)
     transport_per_day: int = Field(default=15000, ge=0, le=1000000)
+    travelers: int = Field(default=1, ge=1, le=10)
+    rooms: int = Field(default=1, ge=1, le=10)
+    lodging_type: str = Field(default='호텔', min_length=1, max_length=60)
+    meal_plan: list[MealPlan] | None = Field(default=None, min_length=1, max_length=4)
+
+    @field_validator('meal_plan')
+    @classmethod
+    def unique_meals(cls, value):
+        if value and len({m.name for m in value}) != len(value):
+            raise ValueError('식사 항목은 중복할 수 없습니다.')
+        return value
 
 
 class Place(BaseModel):

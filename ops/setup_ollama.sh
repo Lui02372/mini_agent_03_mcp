@@ -11,4 +11,5 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now ollama
 sleep 3
 OLLAMA_HOST=172.17.0.1:11434 ollama pull qwen3:1.7b
+OLLAMA_HOST=172.17.0.1:11434 ollama pull gemma3:1b
 OLLAMA_HOST=172.17.0.1:11434 ollama list

@@ -14,8 +14,15 @@ def check_app():
             assert data["status"] == "connected" and data["tool_count"] >= 3
         print("PASS", path)
     real = os.getenv('REQUIRE_REAL_DATA', 'false').lower() == 'true'
+    with urllib.request.urlopen('http://backend:8000/api/multi/data-status', timeout=10) as response:
+        connection = json.load(response)
+    assert set(connection) == {'checked_at', 'services', 'cache_seconds'}
+    if real:
+        assert len(connection['services']) == 4
+        assert set(connection['services'].values()) == {'connected'}, connection['services']
+    print('PASS sanitized data connection status')
     payload = {"data_mode": "auto" if real else "mock", "allow_model_mock": False,
-               "providers": {a: "ollama" if real else "mock" for a in
+               "providers": {a: os.getenv(a.upper() + "_PROVIDER", "ollama") if real else "mock" for a in
                ("weather_agent", "place_agent", "budget_agent", "validation_agent")}}
     request = urllib.request.Request("http://backend:8000/api/multi/runs",
               data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
@@ -28,12 +35,12 @@ def check_app():
             run = json.load(response)
     assert run["status"] == "completed", run["status"]
     assert len(run["agents"]) == 4
-    assert all(a["provider_used"] == ("ollama" if real else "mock") and not a['error'] for a in run["agents"].values())
+    assert all(state["provider_used"] == payload["providers"][agent] and not state["error"] for agent, state in run["agents"].items())
     assert run["validation"]["mock_data"] is (not real)
     if real:
         assert run['storage'] == {'postgres': 'saved', 'redis': 'saved'}, run['storage']
     assert "mcp" not in run["evidence"]["checks"], "MCP evidence tool was unavailable"
-    print("PASS four-agent orchestration through MCP:", "real Ollama + source data + persisted history" if real else "explicit CI fixtures")
+    print("PASS four-agent orchestration through MCP:", "real configured models + source data + persisted history" if real else "explicit CI fixtures")
 
 
 
